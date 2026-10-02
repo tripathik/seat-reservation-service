@@ -11,7 +11,7 @@
 
 	<groupId>com.paytm.assignment</groupId>
 	<artifactId>seat-reservation</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.0.1</version>
 
 	<name>seat-reservation</name>
 	<description>Concurrency-safe seat reservation service</description>

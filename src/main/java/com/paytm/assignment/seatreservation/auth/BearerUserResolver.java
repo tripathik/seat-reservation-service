@@ -3,6 +3,10 @@ package com.paytm.assignment.seatreservation.auth;
 import com.paytm.assignment.seatreservation.exception.InvalidAuthenticationException;
 import org.springframework.stereotype.Component;
 
+import static com.paytm.assignment.seatreservation.util.constant.Constants.AUTH_HEADER_REQUIRED;
+import static com.paytm.assignment.seatreservation.util.constant.Constants.BEARER_TOKEN_REQUIRED;
+import static com.paytm.assignment.seatreservation.util.constant.Constants.BEARER_KEYWORD_REQUIRED;
+
 @Component
 public class BearerUserResolver {
 
@@ -10,19 +14,19 @@ public class BearerUserResolver {
 
         if (authorization == null || authorization.isBlank()) {
             throw new InvalidAuthenticationException(
-                    "Authorization header is required"
+                    AUTH_HEADER_REQUIRED
             );
         }
 
         if (authorization.equals("Bearer")) {
             throw new InvalidAuthenticationException(
-                    "Bearer token cannot be empty"
+                    BEARER_TOKEN_REQUIRED
             );
         }
 
         if (!authorization.startsWith("Bearer ")) {
             throw new InvalidAuthenticationException(
-                    "Authorization header must use Bearer authentication"
+                    BEARER_KEYWORD_REQUIRED
             );
         }
 
@@ -30,7 +34,7 @@ public class BearerUserResolver {
 
         if (userId.isBlank()) {
             throw new InvalidAuthenticationException(
-                    "Bearer token cannot be empty"
+                    BEARER_TOKEN_REQUIRED
             );
         }
 

@@ -12,25 +12,28 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
+
+    List<ShowSeat> findByShowIdOrderBySeatNumber(UUID showId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-       SELECT s
-       FROM ShowSeat s
-       WHERE s.show.id = :showId
-         AND s.seatNumber IN :seatNumbers
-       ORDER BY s.seatNumber
-       """)
+            SELECT s
+            FROM ShowSeat s
+            WHERE s.show.id = :showId
+              AND s.seatNumber IN :seatNumbers
+            ORDER BY s.seatNumber
+            """)
     List<ShowSeat> findSeatsForUpdate(
             @Param("showId") UUID showId,
             @Param("seatNumbers") Collection<String> seatNumbers
     );
 
     @Query("""
-       SELECT s
-       FROM ShowSeat s
-       WHERE s.reservation.id = :reservationId
-       ORDER BY s.seatNumber
-       """)
+            SELECT s
+            FROM ShowSeat s
+            WHERE s.reservation.id = :reservationId
+            ORDER BY s.seatNumber
+            """)
     List<ShowSeat> findByReservationId(
             @Param("reservationId") UUID reservationId
     );

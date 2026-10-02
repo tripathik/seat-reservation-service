@@ -1,11 +1,11 @@
 package com.paytm.assignment.seatreservation.service;
 
-import com.paytm.assignment.seatreservation.dto.CreateShowRequest;
-import com.paytm.assignment.seatreservation.dto.SeatResponse;
-import com.paytm.assignment.seatreservation.dto.ShowResponse;
+import com.paytm.assignment.seatreservation.dto.*;
+import com.paytm.assignment.seatreservation.entity.SeatStatus;
 import com.paytm.assignment.seatreservation.entity.Show;
 import com.paytm.assignment.seatreservation.entity.ShowSeat;
 import com.paytm.assignment.seatreservation.exception.DuplicateSeatException;
+import com.paytm.assignment.seatreservation.exception.ShowNotFoundException;
 import com.paytm.assignment.seatreservation.repository.ShowRepository;
 import com.paytm.assignment.seatreservation.repository.ShowSeatRepository;
 import org.springframework.stereotype.Service;
@@ -14,12 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+
+import static com.paytm.assignment.seatreservation.util.constant.Constants.*;
 
 @Service
 public class ShowService {
-
-    private static final int DEFAULT_PER_USER_LIMIT = 4;
-
     private final ShowRepository showRepository;
     private final ShowSeatRepository showSeatRepository;
 
@@ -66,14 +66,65 @@ public class ShowService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public ShowDetailsResponse getShowDetails(UUID showId) {
+
+        Show show = showRepository.findById(showId)
+                .orElseThrow(() ->
+                        new ShowNotFoundException(
+                                SHOW_NOT_FOUND.formatted(showId)
+                        ));
+
+        List<ShowSeat> showSeats =
+                showSeatRepository.findByShowIdOrderBySeatNumber(showId);
+
+        long available = showSeats.stream()
+                .filter(seat -> seat.getStatus() == SeatStatus.AVAILABLE)
+                .count();
+
+        long confirmed = showSeats.stream()
+                .filter(seat -> seat.getStatus() == SeatStatus.CONFIRMED)
+                .count();
+
+        long held = 0;
+        long total = showSeats.size();
+
+        if (available + held + confirmed != total) {
+            throw new IllegalStateException(
+                    SEAT_INVENTORY_VIOLATED.formatted(showId)
+            );
+        }
+
+        List<SeatResponse> seats = showSeats.stream()
+                .map(seat -> new SeatResponse(
+                        seat.getSeatNumber(),
+                        seat.getStatus().name().toLowerCase()
+                ))
+                .toList();
+
+        SeatCounts counts = new SeatCounts(
+                available,
+                held,
+                confirmed,
+                total
+        );
+
+        return new ShowDetailsResponse(
+                show.getId(),
+                show.getName(),
+                show.getPricePaise(),
+                show.getPerUserLimit(),
+                seats,
+                counts
+        );
+    }
+
     private void validateUniqueSeats(List<String> seats) {
 
         Set<String> uniqueSeats = new HashSet<>(seats);
 
         if (uniqueSeats.size() != seats.size()) {
-            throw new DuplicateSeatException(
-                    "Duplicate seat numbers are not allowed"
-            );
+            throw new DuplicateSeatException(DUPLICATE_SEATS_NOT_ALLOWED);
         }
     }
 }

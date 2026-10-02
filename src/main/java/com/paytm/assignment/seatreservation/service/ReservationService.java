@@ -16,6 +16,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
+import static com.paytm.assignment.seatreservation.util.constant.Constants.*;
+
 @Service
 public class ReservationService {
 
@@ -52,15 +54,11 @@ public class ReservationService {
                 .toList();
 
         if (requestedSeats.stream().distinct().count() != requestedSeats.size()) {
-            throw new DuplicateSeatException(
-                    "Duplicate seat numbers are not allowed"
-            );
+            throw new DuplicateSeatException(DUPLICATE_SEATS_NOT_ALLOWED);
         }
 
         Show show = showRepository.findById(showId)
-                .orElseThrow(() -> new ShowNotFoundException(
-                        "Show not found: %s".formatted(showId)
-                ));
+                .orElseThrow(() -> new ShowNotFoundException(SHOW_NOT_FOUND.formatted(showId)));
 
         String fingerprint = createFingerprint(showId, requestedSeats);
 
@@ -77,13 +75,11 @@ public class ReservationService {
                                 request.idempotencyKey()
                         )
                         .orElseThrow(() ->
-                                new IllegalStateException(
-                                        "Idempotency record was not created"
-                                ));
+                                new IllegalStateException(NO_IDEMPOTENT_RECORD));
 
         if (!idempotencyRecord.getRequestFingerprint().equals(fingerprint)) {
             throw new IdempotencyConflictException(
-                    "Idempotency key was already used for a different request"
+                    IDEMPOTENCY_KEY_ALREADY_USED
             );
         }
 
@@ -104,14 +100,12 @@ public class ReservationService {
         ShowUserBooking userBooking =
                 showUserBookingRepository.findForUpdate(showId, userId)
                         .orElseThrow(() ->
-                                new IllegalStateException(
-                                        "Show-user booking row was not created"
-                                ));
+                                new IllegalStateException(SHOW_USER_BOOKING_NOT_FOUND));
 
         if (userBooking.getConfirmedSeatCount() + requestedSeats.size()
                 > show.getPerUserLimit()) {
 
-            throw new PerUserLimitExceededException("Per-user booking limit exceeded");
+            throw new PerUserLimitExceededException(USER_BOOKING_LIMIT_EXCEEDED);
         }
 
         // 3. Lock requested seats in deterministic order.
@@ -122,7 +116,7 @@ public class ReservationService {
                 );
 
         if (seats.size() != requestedSeats.size()) {
-            throw new SeatUnavailableException("One or more requested seats do not exist");
+            throw new SeatUnavailableException(SEAT_DOES_NOT_EXIST);
         }
 
         boolean unavailable = seats.stream()
@@ -130,7 +124,7 @@ public class ReservationService {
                         seat.getStatus() != SeatStatus.AVAILABLE);
 
         if (unavailable) {
-            throw new SeatUnavailableException("One or more requested seats are unavailable");
+            throw new SeatUnavailableException(SEATS_UNAVAILABLE);
         }
 
         // 4. Create the reservation.
@@ -177,14 +171,12 @@ public class ReservationService {
                 reservationRepository.findForUpdate(reservationId)
                         .orElseThrow(() ->
                                 new ReservationNotFoundException(
-                                        "Reservation not found: %s".formatted(reservationId)
+                                        RESERVATION_NOT_FOUND.formatted(reservationId)
                                 ));
 
         // 2. Only the owner may cancel.
         if (!reservation.getUserId().equals(userId)) {
-            throw new ReservationAccessDeniedException(
-                    "You are not allowed to cancel this reservation"
-            );
+            throw new ReservationAccessDeniedException(RESERVATION_CANCELLATION_NOT_ALLOWED);
         }
 
         // 3. Historical seat membership.
@@ -208,9 +200,7 @@ public class ReservationService {
                                 userId
                         )
                         .orElseThrow(() ->
-                                new IllegalStateException(
-                                        "Show-user booking row does not exist"
-                                ));
+                                new IllegalStateException(SHOW_USER_BOOKING_NOT_FOUND));
 
         // 6. Lock the CURRENT inventory rows before releasing them.
         List<ShowSeat> seats =
@@ -220,9 +210,7 @@ public class ReservationService {
                 );
 
         if (seats.size() != seatNumbers.size()) {
-            throw new IllegalStateException(
-                    "Reservation seat inventory is inconsistent"
-            );
+            throw new IllegalStateException(RESERVATION_SEAT_INCONSISTENT);
         }
 
         // 7. Defensive ownership verification.
@@ -235,7 +223,7 @@ public class ReservationService {
 
         if (invalidOwnership) {
             throw new IllegalStateException(
-                    "Reservation seat ownership is inconsistent"
+                    RESERVATION_SEAT_OWNERSHIP_INCONSISTENT
             );
         }
 
@@ -266,14 +254,14 @@ public class ReservationService {
         String canonicalRequest = showId + "|" + String.join(",", seats);
 
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance(MESSAGE_DIGEST_ALGORITHM);
 
             byte[] hash = digest.digest(canonicalRequest.getBytes(StandardCharsets.UTF_8));
 
             return HexFormat.of().formatHex(hash);
 
         } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
+            throw new IllegalStateException(SHA_256_ALGO_UNAVAILABLE, exception);
         }
     }
 }
