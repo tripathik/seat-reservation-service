@@ -36,9 +36,24 @@ public class ShowSeat {
     @Column(nullable = false)
     private SeatStatus status;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reservation_id")
+    private Reservation reservation;
+
     public ShowSeat(Show show, String seatNumber) {
         this.show = show;
         this.seatNumber = seatNumber;
         this.status = SeatStatus.AVAILABLE;
+    }
+
+
+    public void confirm(Reservation reservation) {
+        this.status = SeatStatus.CONFIRMED;
+        this.reservation = reservation;
+    }
+
+    public void release() {
+        this.status = SeatStatus.AVAILABLE;
+        this.reservation = null;
     }
 }
