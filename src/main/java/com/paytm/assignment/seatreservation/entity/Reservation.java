@@ -46,4 +46,8 @@ public class Reservation {
         this.status = ReservationStatus.CONFIRMED;
         this.createdAt = Instant.now();
     }
+
+    public void cancel() {
+        this.status = ReservationStatus.CANCELLED;
+    }
 }

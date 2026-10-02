@@ -108,4 +108,34 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(response);
     }
+
+    @ExceptionHandler(ReservationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleReservationNotFound(
+            ReservationNotFoundException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                "RESERVATION_NOT_FOUND",
+                exception.getMessage(),
+                Instant.now()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(response);
+    }
+
+    @ExceptionHandler(ReservationAccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleReservationAccessDenied(
+            ReservationAccessDeniedException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                "RESERVATION_ACCESS_DENIED",
+                exception.getMessage(),
+                Instant.now()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(response);
+    }
 }

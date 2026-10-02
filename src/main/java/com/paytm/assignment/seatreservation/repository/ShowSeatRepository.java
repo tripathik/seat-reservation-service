@@ -24,4 +24,14 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
             @Param("showId") UUID showId,
             @Param("seatNumbers") Collection<String> seatNumbers
     );
+
+    @Query("""
+       SELECT s
+       FROM ShowSeat s
+       WHERE s.reservation.id = :reservationId
+       ORDER BY s.seatNumber
+       """)
+    List<ShowSeat> findByReservationId(
+            @Param("reservationId") UUID reservationId
+    );
 }

@@ -24,19 +24,22 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final ShowUserBookingRepository showUserBookingRepository;
     private final IdempotencyRecordRepository idempotencyRecordRepository;
+    private final ReservationSeatRepository reservationSeatRepository;
 
     public ReservationService(
             ShowRepository showRepository,
             ShowSeatRepository showSeatRepository,
             ReservationRepository reservationRepository,
             ShowUserBookingRepository showUserBookingRepository,
-            IdempotencyRecordRepository idempotencyRecordRepository) {
+            IdempotencyRecordRepository idempotencyRecordRepository,
+            ReservationSeatRepository reservationSeatRepository) {
 
         this.showRepository = showRepository;
         this.showSeatRepository = showSeatRepository;
         this.reservationRepository = reservationRepository;
         this.showUserBookingRepository = showUserBookingRepository;
         this.idempotencyRecordRepository = idempotencyRecordRepository;
+        this.reservationSeatRepository = reservationSeatRepository;
     }
 
     @Transactional
@@ -144,6 +147,15 @@ public class ReservationService {
 
         reservationRepository.save(reservation);
 
+        // Save reservation history such as "reservation_id" & "seat_number", which will
+        // be helpful to identify the data for cancelled reservation for future operation
+        List<ReservationSeat> reservationSeats = requestedSeats.stream()
+                .map(seatNumber ->
+                        new ReservationSeat(reservation, seatNumber))
+                .toList();
+
+        reservationSeatRepository.saveAll(reservationSeats);
+
         // 5. Assign every requested seat atomically.
         seats.forEach(seat -> seat.confirm(reservation));
 
@@ -157,9 +169,87 @@ public class ReservationService {
         );
     }
 
-    private ReservationResponse buildResponse(
-            Reservation reservation,
-            List<String> seats) {
+    @Transactional
+    public ReservationResponse cancel(UUID reservationId, String userId) {
+
+        // 1. Lock the reservation itself.
+        Reservation reservation =
+                reservationRepository.findForUpdate(reservationId)
+                        .orElseThrow(() ->
+                                new ReservationNotFoundException(
+                                        "Reservation not found: %s".formatted(reservationId)
+                                ));
+
+        // 2. Only the owner may cancel.
+        if (!reservation.getUserId().equals(userId)) {
+            throw new ReservationAccessDeniedException(
+                    "You are not allowed to cancel this reservation"
+            );
+        }
+
+        // 3. Historical seat membership.
+        List<ReservationSeat> reservationSeats =
+                reservationSeatRepository
+                        .findByReservationIdOrderBySeatNumber(reservationId);
+
+        List<String> seatNumbers = reservationSeats.stream()
+                .map(ReservationSeat::getSeatNumber)
+                .toList();
+
+        // 4. Repeated cancellation is idempotent.
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            return buildResponse(reservation, seatNumbers);
+        }
+
+        // 5. Lock the user's show-level booking counter.
+        ShowUserBooking userBooking =
+                showUserBookingRepository.findForUpdate(
+                                reservation.getShow().getId(),
+                                userId
+                        )
+                        .orElseThrow(() ->
+                                new IllegalStateException(
+                                        "Show-user booking row does not exist"
+                                ));
+
+        // 6. Lock the CURRENT inventory rows before releasing them.
+        List<ShowSeat> seats =
+                showSeatRepository.findSeatsForUpdate(
+                        reservation.getShow().getId(),
+                        seatNumbers
+                );
+
+        if (seats.size() != seatNumbers.size()) {
+            throw new IllegalStateException(
+                    "Reservation seat inventory is inconsistent"
+            );
+        }
+
+        // 7. Defensive ownership verification.
+        boolean invalidOwnership = seats.stream()
+                .anyMatch(seat ->
+                        seat.getStatus() != SeatStatus.CONFIRMED
+                                || seat.getReservation() == null
+                                || !seat.getReservation().getId()
+                                .equals(reservationId));
+
+        if (invalidOwnership) {
+            throw new IllegalStateException(
+                    "Reservation seat ownership is inconsistent"
+            );
+        }
+
+        // 8. Release inventory + update user count + cancel reservation.
+        seats.forEach(ShowSeat::release);
+
+        userBooking.removeConfirmedSeats(seats.size());
+
+        reservation.cancel();
+
+        return buildResponse(reservation, seatNumbers);
+    }
+
+    private ReservationResponse buildResponse(Reservation reservation, List<String> seats) {
 
         return new ReservationResponse(
                 reservation.getId(),
