@@ -8,6 +8,7 @@ spring:
     password: ${DB_PASSWORD:seat_password}
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
     properties:
