@@ -9,10 +9,6 @@ import com.paytm.assignment.seatreservation.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +23,7 @@ public class ReservationService {
     private final ShowUserBookingRepository showUserBookingRepository;
     private final IdempotencyRecordRepository idempotencyRecordRepository;
     private final ReservationSeatRepository reservationSeatRepository;
+    private final ReservationFingerprintGenerator fingerprintGenerator;
 
     public ReservationService(
             ShowRepository showRepository,
@@ -34,7 +31,8 @@ public class ReservationService {
             ReservationRepository reservationRepository,
             ShowUserBookingRepository showUserBookingRepository,
             IdempotencyRecordRepository idempotencyRecordRepository,
-            ReservationSeatRepository reservationSeatRepository) {
+            ReservationSeatRepository reservationSeatRepository,
+            ReservationFingerprintGenerator fingerprintGenerator) {
 
         this.showRepository = showRepository;
         this.showSeatRepository = showSeatRepository;
@@ -42,6 +40,7 @@ public class ReservationService {
         this.showUserBookingRepository = showUserBookingRepository;
         this.idempotencyRecordRepository = idempotencyRecordRepository;
         this.reservationSeatRepository = reservationSeatRepository;
+        this.fingerprintGenerator = fingerprintGenerator;
     }
 
     @Transactional
@@ -60,7 +59,7 @@ public class ReservationService {
         Show show = showRepository.findById(showId)
                 .orElseThrow(() -> new ShowNotFoundException(SHOW_NOT_FOUND.formatted(showId)));
 
-        String fingerprint = createFingerprint(showId, requestedSeats);
+        String fingerprint = fingerprintGenerator.generate(showId, requestedSeats);
 
         // 1. Establish and lock the idempotency record.
         idempotencyRecordRepository.createIfAbsent(
@@ -247,21 +246,5 @@ public class ReservationService {
                 reservation.getAmountPaise(),
                 reservation.getStatus().name().toLowerCase()
         );
-    }
-
-    private String createFingerprint(UUID showId, List<String> seats) {
-
-        String canonicalRequest = showId + "|" + String.join(",", seats);
-
-        try {
-            MessageDigest digest = MessageDigest.getInstance(MESSAGE_DIGEST_ALGORITHM);
-
-            byte[] hash = digest.digest(canonicalRequest.getBytes(StandardCharsets.UTF_8));
-
-            return HexFormat.of().formatHex(hash);
-
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(SHA_256_ALGO_UNAVAILABLE, exception);
-        }
     }
 }
