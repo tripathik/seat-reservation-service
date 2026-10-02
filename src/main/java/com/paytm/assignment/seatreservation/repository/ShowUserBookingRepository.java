@@ -41,4 +41,9 @@ public interface ShowUserBookingRepository
             @Param("showId") UUID showId,
             @Param("userId") String userId
     );
+
+    Optional<ShowUserBooking> findByShowIdAndUserId(
+            UUID showId,
+            String userId
+    );
 }
