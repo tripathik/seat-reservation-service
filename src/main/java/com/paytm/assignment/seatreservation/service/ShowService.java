@@ -148,7 +148,7 @@ public class ShowService {
                     @Override
                     public void afterCommit() {
                         seatsAvailabilityMetrics.registerShow(savedShow.getId());
-                        log.info("Show created: showId={}, name={}, totalSeats={}, pricePaise={}, perUserLimit={}",
+                        log.info("SHOW_CREATED: showId={}, name={}, totalSeats={}, pricePaise={}, perUserLimit={}",
                                 savedShow.getId(),
                                 savedShow.getName(),
                                 seats.size(),

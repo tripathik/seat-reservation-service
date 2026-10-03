@@ -5,10 +5,16 @@ import { Counter } from 'k6/metrics';
 
 const reservationSuccess = new Counter('reservation_success');
 const seatTakenConflict = new Counter('seat_taken_conflict');
-const serverErrors = new Counter('server_errors');
+const http5xxErrors = new Counter('http_5xx_errors');
+const networkErrors = new Counter('network_errors');
 const unexpectedStatus = new Counter('unexpected_status');
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+
+// 409 is not the error, its intended ehavior
+http.setResponseCallback(
+    http.expectedStatuses(200, 201, 409)
+);
 
 export const options = {
     scenarios: {
@@ -16,7 +22,7 @@ export const options = {
             executor: 'shared-iterations',
             vus: 100,
             iterations: 20000,
-            maxDuration: '10m'
+            maxDuration: '30m'
         }
     }
 };
@@ -88,8 +94,15 @@ export default function (data) {
         return;
     }
 
+    // status=0  ===>  k6 did not receive an HTTP response, such as connection timeout or TCP connection failure
+    if (response.status === 0) {
+        networkErrors.add(1);
+        return;
+    }
+
+    // Check actual http 5xx error response returned from the API
     if (response.status >= 500) {
-        serverErrors.add(1);
+        http5xxErrors.add(1);
         return;
     }
 

@@ -9,6 +9,7 @@ import com.paytm.assignment.seatreservation.metrics.ReservationMetrics;
 import com.paytm.assignment.seatreservation.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -97,7 +98,7 @@ public class ReservationService {
 
             reservationMetrics.recordIdempotentReplay();
 
-            log.info("Reservation replayed: reservationId={}, showId={}, userId={}, seats={}",
+            log.info("RESERVATION_REPLAYED: reservationId={}, showId={}, userId={}, seats={}",
                     idempotencyRecord.getReservation().getId(),
                     showId,
                     userId,
@@ -126,8 +127,7 @@ public class ReservationService {
 
             reservationMetrics.recordPerUserLimitDecline();
 
-            log.warn(
-                    "Reservation declined: reason=per_user_limit, showId={}, userId={}, seats={}",
+            log.warn("RESERVATION_DECLINED: reason=per_user_limit, showId={}, userId={}, seats={}",
                     showId,
                     userId,
                     requestedSeats
@@ -137,11 +137,7 @@ public class ReservationService {
         }
 
         // 3. Lock requested seats in deterministic order.
-        List<ShowSeat> seats =
-                showSeatRepository.findSeatsForUpdate(
-                        showId,
-                        requestedSeats
-                );
+        List<ShowSeat> seats = lockSeatsDeterministically(showId, userId, requestedSeats);
 
         if (seats.size() != requestedSeats.size()) {
             throw new SeatUnavailableException(SEAT_DOES_NOT_EXIST);
@@ -154,8 +150,7 @@ public class ReservationService {
         if (unavailable) {
             reservationMetrics.recordSeatTakenDecline();
 
-            log.info(
-                    "Reservation declined: reason=seat_taken, showId={}, userId={}, seats={}",
+            log.info("RESERVATION_DECLINED: reason=seat_taken, showId={}, userId={}, seats={}",
                     showId,
                     userId,
                     requestedSeats
@@ -234,7 +229,7 @@ public class ReservationService {
 
         // 4. Repeated cancellation is idempotent.
         if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-            log.info("Reservation Cancellation replayed: reservationId={}, showId={}, userId={}",
+            log.info("RESERVATION_CANCELLATION_REPLAYED: reservationId={}, showId={}, userId={}",
                     reservationId,
                     reservation.getShow().getId(),
                     userId
@@ -293,6 +288,23 @@ public class ReservationService {
         return buildResponse(reservation, seatNumbers);
     }
 
+    private List<ShowSeat> lockSeatsDeterministically(UUID showId, String userId, List<String> requestedSeats) {
+        try {
+            return showSeatRepository.findSeatsForUpdate(showId, requestedSeats);
+        } catch (PessimisticLockingFailureException exception) {
+
+            reservationMetrics.recordSeatTakenDecline();
+
+            log.info("RESERVATION_DECLINED: reason=seat_contention, showId={}, userId={}, seats={}",
+                    showId,
+                    userId,
+                    requestedSeats
+            );
+
+            throw new SeatLockContentionException("One or more requested seats are currently being reserved");
+        }
+    }
+
     private ReservationResponse buildResponse(Reservation reservation, List<String> seats) {
 
         return new ReservationResponse(
@@ -314,7 +326,7 @@ public class ReservationService {
 
                         reservationMetrics.recordConfirmedReservation();
 
-                        log.info("Reservation confirmed: reservationId={}, showId={}, userId={}, seats={}",
+                        log.info("RESERVATION_CONFIRMED: reservationId={}, showId={}, userId={}, seats={}",
                                 reservationId,
                                 showId,
                                 userId,
@@ -332,7 +344,7 @@ public class ReservationService {
                     @Override
                     public void afterCommit() {
 
-                        log.info("Reservation cancelled: reservationId={}, showId={}, userId={}, seats={}",
+                        log.info("RESERVATION_CANCELLED: reservationId={}, showId={}, userId={}, seats={}",
                                 reservationId,
                                 showId,
                                 userId,

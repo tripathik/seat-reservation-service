@@ -2,9 +2,11 @@ package com.paytm.assignment.seatreservation.repository;
 
 import com.paytm.assignment.seatreservation.entity.ShowSeat;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
@@ -16,6 +18,12 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
     List<ShowSeat> findByShowIdOrderBySeatNumber(UUID showId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(
+            @QueryHint(
+                    name = "jakarta.persistence.lock.timeout",
+                    value = "0"
+            )
+    )
     @Query("""
             SELECT s
             FROM ShowSeat s
@@ -23,10 +31,7 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
               AND s.seatNumber IN :seatNumbers
             ORDER BY s.seatNumber
             """)
-    List<ShowSeat> findSeatsForUpdate(
-            @Param("showId") UUID showId,
-            @Param("seatNumbers") Collection<String> seatNumbers
-    );
+    List<ShowSeat> findSeatsForUpdate(@Param("showId") UUID showId, @Param("seatNumbers") Collection<String> seatNumbers);
 
     @Query("""
             SELECT s
@@ -34,9 +39,7 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
             WHERE s.reservation.id = :reservationId
             ORDER BY s.seatNumber
             """)
-    List<ShowSeat> findByReservationId(
-            @Param("reservationId") UUID reservationId
-    );
+    List<ShowSeat> findByReservationId(@Param("reservationId") UUID reservationId);
 
     @Query("""
         SELECT COUNT(s)

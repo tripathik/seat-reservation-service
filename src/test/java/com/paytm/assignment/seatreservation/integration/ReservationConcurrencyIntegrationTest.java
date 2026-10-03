@@ -7,6 +7,7 @@ import com.paytm.assignment.seatreservation.dto.ShowResponse;
 import com.paytm.assignment.seatreservation.entity.SeatStatus;
 import com.paytm.assignment.seatreservation.entity.ShowSeat;
 import com.paytm.assignment.seatreservation.exception.PerUserLimitExceededException;
+import com.paytm.assignment.seatreservation.exception.SeatLockContentionException;
 import com.paytm.assignment.seatreservation.exception.SeatUnavailableException;
 import org.junit.jupiter.api.Test;
 
@@ -67,7 +68,7 @@ public class ReservationConcurrencyIntegrationTest extends AbstractIntegrationTe
 
                         successfulReservations.incrementAndGet();
 
-                    } catch (SeatUnavailableException e) {
+                    } catch (SeatUnavailableException | SeatLockContentionException e) {
 
                         rejectedReservations.incrementAndGet();
 

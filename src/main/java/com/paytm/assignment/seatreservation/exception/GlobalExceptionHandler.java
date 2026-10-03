@@ -138,4 +138,18 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.FORBIDDEN)
                 .body(response);
     }
+
+    @ExceptionHandler(SeatLockContentionException.class)
+    public ResponseEntity<ApiErrorResponse> handleSeatLockContention(SeatLockContentionException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                "SEAT_UNAVAILABLE",
+                exception.getMessage(),
+                Instant.now()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(response);
+    }
 }
