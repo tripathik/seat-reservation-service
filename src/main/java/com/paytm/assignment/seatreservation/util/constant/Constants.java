@@ -2,8 +2,24 @@ package com.paytm.assignment.seatreservation.util.constant;
 
 public class Constants {
 
+    // Constants used in classes
     public static final int DEFAULT_PER_USER_LIMIT = 4;
     public static final String MESSAGE_DIGEST_ALGORITHM = "SHA-256";
+    public static final String RESERVATION_CONFIRMED = "reservation.confirmed";
+    public static final String RESERVATION_DECLINED = "reservation.declined";
+    public static final String REASON = "reason";
+    public static final String SEAT_TAKEN = "seat_taken";
+    public static final String PER_USER_LIMIT = "per_user_limit";
+    public static final String IDEMPOTENCY_REPLAY = "idempotent_replay";
+    public static final String CONFIRMED_RESERVATION_MSG = "Number of successfully confirmed reservations";
+    public static final String DECLINED_RESERVATION_MSG = "Number of declined reservation attempts";
+    public static final String REPLAYED_RESERVATION_MSG = "Number of idempotent reservation replays";
+    public static final String CURRENT_AVAILABLE_SEATS_MSG = "Current number of available seats for a show";
+    public static final String SEATS_AVAILABLE = "seats.available";
+    public static final String SHOW_ID = "show_id";
+
+
+    // Validation & Error Messages
     public static final String AUTH_HEADER_REQUIRED = "Authorization header is required";
     public static final String BEARER_TOKEN_REQUIRED = "Bearer token cannot be empty";
     public static final String BEARER_KEYWORD_REQUIRED = "Authorization header must use 'Bearer' before token value";

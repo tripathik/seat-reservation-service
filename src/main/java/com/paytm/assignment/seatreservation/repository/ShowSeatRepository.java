@@ -37,4 +37,12 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
     List<ShowSeat> findByReservationId(
             @Param("reservationId") UUID reservationId
     );
+
+    @Query("""
+        SELECT COUNT(s)
+        FROM ShowSeat s
+        WHERE s.show.id = :showId
+          AND s.status = com.paytm.assignment.seatreservation.entity.SeatStatus.AVAILABLE
+        """)
+    long countAvailableSeats(@Param("showId") UUID showId);
 }

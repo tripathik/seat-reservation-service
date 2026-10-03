@@ -5,9 +5,14 @@ import com.paytm.assignment.seatreservation.dto.ReservationResult;
 import com.paytm.assignment.seatreservation.dto.ReserveSeatsRequest;
 import com.paytm.assignment.seatreservation.entity.*;
 import com.paytm.assignment.seatreservation.exception.*;
+import com.paytm.assignment.seatreservation.metrics.ReservationMetrics;
 import com.paytm.assignment.seatreservation.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +21,8 @@ import static com.paytm.assignment.seatreservation.util.constant.Constants.*;
 
 @Service
 public class ReservationService {
+    private static final Logger log =
+            LoggerFactory.getLogger(ReservationService.class);
 
     private final ShowRepository showRepository;
     private final ShowSeatRepository showSeatRepository;
@@ -24,6 +31,7 @@ public class ReservationService {
     private final IdempotencyRecordRepository idempotencyRecordRepository;
     private final ReservationSeatRepository reservationSeatRepository;
     private final ReservationFingerprintGenerator fingerprintGenerator;
+    private final ReservationMetrics reservationMetrics;
 
     public ReservationService(
             ShowRepository showRepository,
@@ -32,7 +40,8 @@ public class ReservationService {
             ShowUserBookingRepository showUserBookingRepository,
             IdempotencyRecordRepository idempotencyRecordRepository,
             ReservationSeatRepository reservationSeatRepository,
-            ReservationFingerprintGenerator fingerprintGenerator) {
+            ReservationFingerprintGenerator fingerprintGenerator,
+            ReservationMetrics reservationMetrics) {
 
         this.showRepository = showRepository;
         this.showSeatRepository = showSeatRepository;
@@ -41,6 +50,7 @@ public class ReservationService {
         this.idempotencyRecordRepository = idempotencyRecordRepository;
         this.reservationSeatRepository = reservationSeatRepository;
         this.fingerprintGenerator = fingerprintGenerator;
+        this.reservationMetrics = reservationMetrics;
     }
 
     @Transactional
@@ -84,6 +94,16 @@ public class ReservationService {
 
         // Existing successful reservation = idempotent replay.
         if (idempotencyRecord.getReservation() != null) {
+
+            reservationMetrics.recordIdempotentReplay();
+
+            log.info("Reservation replayed: reservationId={}, showId={}, userId={}, seats={}",
+                    idempotencyRecord.getReservation().getId(),
+                    showId,
+                    userId,
+                    requestedSeats
+            );
+
             return new ReservationResult(
                     buildResponse(
                             idempotencyRecord.getReservation(),
@@ -104,6 +124,15 @@ public class ReservationService {
         if (userBooking.getConfirmedSeatCount() + requestedSeats.size()
                 > show.getPerUserLimit()) {
 
+            reservationMetrics.recordPerUserLimitDecline();
+
+            log.warn(
+                    "Reservation declined: reason=per_user_limit, showId={}, userId={}, seats={}",
+                    showId,
+                    userId,
+                    requestedSeats
+            );
+
             throw new PerUserLimitExceededException(USER_BOOKING_LIMIT_EXCEEDED);
         }
 
@@ -123,6 +152,15 @@ public class ReservationService {
                         seat.getStatus() != SeatStatus.AVAILABLE);
 
         if (unavailable) {
+            reservationMetrics.recordSeatTakenDecline();
+
+            log.info(
+                    "Reservation declined: reason=seat_taken, showId={}, userId={}, seats={}",
+                    showId,
+                    userId,
+                    requestedSeats
+            );
+
             throw new SeatUnavailableException(SEATS_UNAVAILABLE);
         }
 
@@ -155,6 +193,13 @@ public class ReservationService {
         userBooking.addConfirmedSeats(seats.size());
 
         idempotencyRecord.attachReservation(reservation);
+
+        recordConfirmedReservationAfterCommit(
+                reservation.getId(),
+                showId,
+                userId,
+                requestedSeats
+        );
 
         return new ReservationResult(
                 buildResponse(reservation, requestedSeats),
@@ -189,6 +234,11 @@ public class ReservationService {
 
         // 4. Repeated cancellation is idempotent.
         if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            log.info("Reservation Cancellation replayed: reservationId={}, showId={}, userId={}",
+                    reservationId,
+                    reservation.getShow().getId(),
+                    userId
+            );
             return buildResponse(reservation, seatNumbers);
         }
 
@@ -233,6 +283,13 @@ public class ReservationService {
 
         reservation.cancel();
 
+        recordCancellationAfterCommit(
+                reservation.getId(),
+                reservation.getShow().getId(),
+                userId,
+                seatNumbers
+        );
+
         return buildResponse(reservation, seatNumbers);
     }
 
@@ -245,6 +302,44 @@ public class ReservationService {
                 seats,
                 reservation.getAmountPaise(),
                 reservation.getStatus().name().toLowerCase()
+        );
+    }
+
+    private void recordConfirmedReservationAfterCommit(UUID reservationId, UUID showId, String userId, List<String> seats) {
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+
+                        reservationMetrics.recordConfirmedReservation();
+
+                        log.info("Reservation confirmed: reservationId={}, showId={}, userId={}, seats={}",
+                                reservationId,
+                                showId,
+                                userId,
+                                seats
+                        );
+                    }
+                }
+        );
+    }
+
+    private void recordCancellationAfterCommit(UUID reservationId, UUID showId, String userId, List<String> seats) {
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+
+                        log.info("Reservation cancelled: reservationId={}, showId={}, userId={}, seats={}",
+                                reservationId,
+                                showId,
+                                userId,
+                                seats
+                        );
+                    }
+                }
         );
     }
 }
