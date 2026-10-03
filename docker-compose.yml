@@ -3,17 +3,33 @@ services:
   postgres:
     image: postgres:17
     container_name: seat-reservation-postgres
-
     environment:
       POSTGRES_DB: seat_reservation
       POSTGRES_USER: seat_user
       POSTGRES_PASSWORD: seat_password
-
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seat_user -d seat_reservation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    container_name: seat-reservation-app
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/seat_reservation
+      DB_USERNAME: seat_user
+      DB_PASSWORD: seat_password
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
