@@ -1,10 +1,10 @@
 package com.paytm.assignment.seatreservation.controller;
 
 import com.paytm.assignment.seatreservation.auth.BearerUserResolver;
-import com.paytm.assignment.seatreservation.dto.ReservationResult;
 import com.paytm.assignment.seatreservation.dto.ReservationResponse;
+import com.paytm.assignment.seatreservation.dto.ReservationResult;
 import com.paytm.assignment.seatreservation.dto.ReserveSeatsRequest;
-import com.paytm.assignment.seatreservation.service.ReservationService;
+import com.paytm.assignment.seatreservation.service.ReservationAdmissionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,14 +16,14 @@ import java.util.UUID;
 @RequestMapping("/shows")
 public class ReservationController {
 
-    private final ReservationService reservationService;
+    private final ReservationAdmissionService reservationAdmissionService;
     private final BearerUserResolver bearerUserResolver;
 
     public ReservationController(
-            ReservationService reservationService,
+            ReservationAdmissionService reservationAdmissionService,
             BearerUserResolver bearerUserResolver) {
 
-        this.reservationService = reservationService;
+        this.reservationAdmissionService = reservationAdmissionService;
         this.bearerUserResolver = bearerUserResolver;
     }
 
@@ -36,9 +36,9 @@ public class ReservationController {
         String userId = bearerUserResolver.resolve(authorization);
 
         ReservationResult result =
-                reservationService.reserve(showId, userId, request);
+                reservationAdmissionService.reserve(showId, userId, request);
 
-        if(result.replay()){
+        if (result.replay()) {
             return ResponseEntity.ok(result.response());
         }
 

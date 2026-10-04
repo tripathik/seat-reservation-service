@@ -36,3 +36,6 @@ management:
 
 server:
   port: ${PORT:8080}
+
+reservation:
+  max-concurrent: ${RESERVATION_MAX_CONCURRENT:6}
