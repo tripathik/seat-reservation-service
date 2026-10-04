@@ -150,7 +150,7 @@ public class ReservationService {
         if (unavailable) {
             reservationMetrics.recordSeatTakenDecline();
 
-            log.info("RESERVATION_DECLINED: reason=seat_taken, showId={}, userId={}, seats={}",
+            log.debug("RESERVATION_DECLINED: reason=seat_taken, showId={}, userId={}, seats={}",
                     showId,
                     userId,
                     requestedSeats
