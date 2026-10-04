@@ -248,7 +248,7 @@ public class ReservationService {
 
         // 6. Lock the CURRENT inventory rows before releasing them.
         List<ShowSeat> seats =
-                showSeatRepository.findSeatsForUpdate(
+                showSeatRepository.findSeatsForUpdateWaiting(
                         reservation.getShow().getId(),
                         seatNumbers
                 );

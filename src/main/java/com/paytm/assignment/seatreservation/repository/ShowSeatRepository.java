@@ -33,6 +33,19 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
             """)
     List<ShowSeat> findSeatsForUpdate(@Param("showId") UUID showId, @Param("seatNumbers") Collection<String> seatNumbers);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT s
+        FROM ShowSeat s
+        WHERE s.show.id = :showId
+          AND s.seatNumber IN :seatNumbers
+        ORDER BY s.seatNumber
+        """)
+    List<ShowSeat> findSeatsForUpdateWaiting(
+            @Param("showId") UUID showId,
+            @Param("seatNumbers") Collection<String> seatNumbers
+    );
+
     @Query("""
             SELECT s
             FROM ShowSeat s

@@ -43,7 +43,12 @@ public class ShowService {
     @Transactional
     public ShowResponse createShow(CreateShowRequest request) {
 
-        validateUniqueSeats(request.seats());
+        List<String> normalizedSeats = request.seats()
+                .stream()
+                .map(String::trim)
+                .toList();
+
+        validateUniqueSeats(normalizedSeats);
 
         Show show = new Show(
                 request.name(),
@@ -53,8 +58,7 @@ public class ShowService {
 
         Show savedShow = showRepository.save(show);
 
-        List<ShowSeat> seats = request.seats()
-                .stream()
+        List<ShowSeat> seats = normalizedSeats.stream()
                 .map(seatNumber -> new ShowSeat(savedShow, seatNumber))
                 .toList();
 
